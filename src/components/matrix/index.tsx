@@ -43,7 +43,6 @@ const Matrix: NamedExoticComponent<Props> = memo(({ className = '' }) => {
 
   return (
     <>
-      <div className={classnames(fontReady && styles.canvas)}>className</div>
       <canvas
         className={classnames(
           className,
