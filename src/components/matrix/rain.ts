@@ -86,6 +86,7 @@ function drawLine (context: CanvasRenderingContext2D, line: Line) {
 function getCanvasClear (context: CanvasRenderingContext2D, width: number, height: number) {
   return () => {
     context.fillStyle = '#000'
+    context.globalAlpha = 1
     context.clearRect(0, 0, width, height)
     context.fillRect(0, 0, width, height)
   }
@@ -157,7 +158,6 @@ function rain (canvas: HTMLCanvasElement) {
   context.shadowOffsetX = context.shadowOffsetY = 0
   context.shadowBlur = 2
   context.shadowColor = '#94f475'
-  context.fillStyle = '#cefbe4'
   context.textBaseline = 'top'
   context.font = `${fontSize}px MatrixCode`
 
