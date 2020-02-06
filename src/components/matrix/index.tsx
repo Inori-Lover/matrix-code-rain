@@ -1,4 +1,4 @@
-import React, { NamedExoticComponent, memo, useEffect, useRef, useMemo, useState, useCallback } from 'react'
+import React, { NamedExoticComponent, memo, useEffect, useRef, useMemo, useState } from 'react'
 import nanoid from 'nanoid/non-secure'
 import classnames from 'clsx'
 import fontfaceonload from 'fontfaceonload'
