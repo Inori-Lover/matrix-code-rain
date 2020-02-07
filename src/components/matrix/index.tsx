@@ -3,7 +3,7 @@ import nanoid from 'nanoid/non-secure'
 import classnames from 'clsx'
 import fontfaceonload from 'fontfaceonload'
 
-import rain from './rain'
+import Rain from './rain'
 import styles from './index.module.scss'
 
 interface Props {
@@ -34,7 +34,7 @@ const Matrix: NamedExoticComponent<Props> = memo(({ className = '' }) => {
     }
 
     try {
-      rain(canvasNode)
+      new Rain(canvasNode)
     } catch (e) {
       console.error(e)
     }

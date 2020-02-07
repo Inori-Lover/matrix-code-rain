@@ -57,154 +57,164 @@ interface Line {
   words: Word[]
 }
 
-const fontSize = 24
-const emptyRange = 0.2
+class Rain {
+  /** 全部可能出现的字符 */
+  private readonly allWords: Word[] = '0123456789qwertyuiopasdfghjklzxcvbnm'.split('').map(str => {
+    return {
+      alpha: 1,
+      color: '#43c728',
+      text: str
+    }
+  })
+  /** 空白占位元素 */
+  private readonly emptyEle = produce(this.allWords[0], word => {
+    word.alpha = 0
+  })
+  /** 每列最多放多少字符 */
+  private wordPerLine = this.allWords.length
+  /** 最小空白长度 */
+  private minEmptyLength = 0
+  /** 最小句子长度 */
+  private minSentenceLength = 0
+  /** 滚动池 */
+  private pool: Line[] = []
+  /** 画布话柄 */
+  private context: CanvasRenderingContext2D
 
-const allWords: Word[] = '0123456789qwertyuiopasdfghjklzxcvbnm'.split('').map(str => {
-  return {
-    alpha: 1,
-    color: '#43c728',
-    text: str
-  }
-})
-const emptyEle = produce(allWords[0], word => {
-  word.alpha = 0
-})
-let wordPerLine = allWords.length
-let minEmptyLength = 0
-let minSentenceLength = 0
-let pool: Line[] = []
-
-function getCanvasClear (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
-  // 这里未使用debonce等限流手段，因为感觉比起绘制作业，这里作业的成本太低了无需特意处理
-  return () => {
-    context.globalAlpha = 1
-
-    context.font = `${fontSize}px MatrixCode`
-    context.fillStyle = '#000'
-    context.shadowOffsetX = context.shadowOffsetY = 0
-    context.shadowBlur = 2
-
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    context.fillRect(0, 0, canvas.width, canvas.height)
-  }
-}
-
-function getCanvasResize (canvas: HTMLCanvasElement): () => void {
-  return () => {
-    canvas.width = canvas.clientWidth
-    canvas.height = canvas.clientHeight
-
-    wordPerLine = Math.floor(canvas.height / fontSize) + 1
-    minEmptyLength = Math.floor(wordPerLine * emptyRange)
-    minSentenceLength = Math.floor(wordPerLine * (1 - emptyRange))
-
-    pool = preparePool(canvas, pool)
-  }
-}
-
-function preparePool<T extends typeof pool> (canvas: HTMLCanvasElement, data: T): T {
-  const lastEle = data[data.length - 1]
-  let offset = !lastEle ? 0 : lastEle.x
-  const width = canvas.width
-
-  let line: Line
-  const push = (data: Line[]) => { data.push(line) }
-
-  while (offset < width) {
-    const isEmpty = Math.random() < emptyRange
-    line = {
-      x: offset,
-      y: 0,
-      speed: randSpeed(),
-      lastEmptyCount: isEmpty ? 1 : 0,
-      words: [emptyEle]
+  constructor (
+    /** 画布 */
+    private readonly canvas: HTMLCanvasElement,
+    /** 字符大小 */
+    private readonly fontSize = 24,
+    /** 空白方位 */
+    private readonly emptyRange = 0.2,
+  ) {
+    const context = canvas.getContext('2d')
+    if (!context) {
+      throw new Error("not support canvas")
     }
 
-    data = produce(data, push)
+    this.context = context
 
-    offset += fontSize
+    context.shadowColor = '#94f475'
+    context.textBaseline = 'top'
+
+    window.addEventListener('resize', this.resize.bind(this))
+    this.resize()
+
+    this.drawFrame()
   }
 
-  return data
-}
+  /** 清空画布 */
+  private clear () {
+    this.context.globalAlpha = 1
 
-function drawLine (context: CanvasRenderingContext2D, line: Line) {
-  const { x, y, words } = line
-  words.forEach((word, index) => {
-    context.fillStyle = word.color
-    context.globalAlpha = word.alpha
-    context.fillText(word.text, x, fontSize * index + y)
-  })
-}
+    this.context.font = `${this.fontSize}px MatrixCode`
+    this.context.fillStyle = '#000'
+    this.context.shadowOffsetX = this.context.shadowOffsetY = 0
+    this.context.shadowBlur = 2
 
-function drawFrame (context: CanvasRenderingContext2D, cloud: Line[], clearCanvas: () => void) {
-  cloud = produce(cloud, cloud => {
-    cloud.forEach(line => {
-      /**
-       * 填充原则：
-       * 1. line的 y轴起点必须 大于 -fontSize, 否则不填充
-       * 2. 假设第一个是空白，则不少于 minEmptyLength 个空格才可以填充
-       * 3. 假设第一个不是空白，按照 emptyRange 来决定填充
-       * 4. 如果可以填充，填充对象是一个长度不小于 wordPerLine * (1 - emptyRange) 的句子
-       */
+    this.context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    this.context.fillRect(0, 0, this.canvas.width, this.canvas.height)
+  }
 
-      line.y += line.speed
-      if (Math.random() < 0.8) {
-        const rand = randInt(line.words.length)
-        line.words[rand].text = randWord(allWords).text
+  /** 监听画布大小变化 */
+  private resize () {
+    this.canvas.width = this.canvas.clientWidth
+    this.canvas.height = this.canvas.clientHeight
+
+    this.wordPerLine = Math.floor(this.canvas.height / this.fontSize) + 1
+    this.minEmptyLength = Math.floor(this.wordPerLine * this.emptyRange)
+    this.minSentenceLength = Math.floor(this.wordPerLine * (1 - this.emptyRange))
+
+    this.pool = this.preparePool(this.canvas, this.pool)
+  }
+
+  /** 补全弹幕池 */
+  private preparePool<T extends Line[]> (canvas: HTMLCanvasElement, data: T): T {
+    const lastEle = data[data.length - 1]
+    let offset = !lastEle ? 0 : lastEle.x
+    const width = canvas.width
+
+    let line: Line
+    const push = (data: Line[]) => { data.push(line) }
+
+    while (offset < width) {
+      const isEmpty = Math.random() < this.emptyRange
+      line = {
+        x: offset,
+        y: 0,
+        speed: randSpeed(),
+        lastEmptyCount: isEmpty ? 1 : 0,
+        words: [this.emptyEle]
       }
 
-       if (line.y < -fontSize) {
-         return
-       }
+      data = produce(data, push)
 
-      const shouldEmpty = Math.random() < emptyRange
-      if (
-        (line.lastEmptyCount > 0 && randInt(line.lastEmptyCount) < minEmptyLength) ||
-        (line.lastEmptyCount === 0 && shouldEmpty)
-      ) {
-        line.lastEmptyCount += 1
-        line.words.unshift(emptyEle)
-        line.y -= fontSize
-      } else {
-        line.lastEmptyCount = 0
-        const sentence = produce(randSentence(allWords, minSentenceLength, wordPerLine / 1.4), sentence => {
-          sentence[sentence.length - 1].color = '#cefbe4'
-        })
-        line.y -= sentence.length * fontSize
-        line.words = sentence.concat(line.words)
-      }
+      offset += this.fontSize
+    }
 
-      if (line.words.length > wordPerLine * 3) {
-        line.words = line.words.slice(0, wordPerLine * 2)
-      }
+    return data
+  }
+
+  /** 列绘制 */
+  private drawLine (line: Line) {
+    const { x, y, words } = line
+    words.forEach((word, index) => {
+      this.context.fillStyle = word.color
+      this.context.globalAlpha = word.alpha
+      this.context.fillText(word.text, x, this.fontSize * index + y)
     })
-  })
-
-  clearCanvas()
-  cloud.forEach(line => drawLine(context, line))
-
-  requestAnimationFrame(() => drawFrame(context, cloud, clearCanvas))
-}
-
-function rain (canvas: HTMLCanvasElement) {
-  const resizer = getCanvasResize(canvas)
-  window.addEventListener('resize', resizer)
-
-  const context = canvas.getContext('2d')
-  if (!context) {
-    throw new Error("not support canvas")
   }
 
-  // 设置画布属性
-  const clearFunc = getCanvasClear(context, canvas)
-  context.shadowColor = '#94f475'
-  context.textBaseline = 'top'
+  /** 帧绘制 */
+  private drawFrame () {
+    this.pool = produce(this.pool, pool => {
+      pool.forEach(line => {
+        /**
+         * 填充原则：
+         * 1. line的 y轴起点必须 大于 -fontSize, 否则不填充
+         * 2. 假设第一个是空白，则不少于 minEmptyLength 个空格才可以填充
+         * 3. 假设第一个不是空白，按照 emptyRange 来决定填充
+         * 4. 如果可以填充，填充对象是一个长度不小于 wordPerLine * (1 - emptyRange) 的句子
+         */
 
-  resizer()
+        line.y += line.speed
+        const rand = randInt(line.words.length)
+        line.words[rand].text = randWord(this.allWords).text
 
-  drawFrame(context, pool, clearFunc)
+         if (line.y < -this.fontSize) {
+           return
+         }
+
+        const shouldEmpty = Math.random() < this.emptyRange
+        if (
+          (line.lastEmptyCount > 0 && randInt(line.lastEmptyCount) < this.minEmptyLength) ||
+          (line.lastEmptyCount === 0 && shouldEmpty)
+        ) {
+          line.lastEmptyCount += 1
+          line.words.unshift(this.emptyEle)
+          line.y -= this.fontSize
+        } else {
+          line.lastEmptyCount = 0
+          const sentence = produce(randSentence(this.allWords, this.minSentenceLength, this.wordPerLine / 1.4), sentence => {
+            sentence[sentence.length - 1].color = '#cefbe4'
+          })
+          line.y -= sentence.length * this.fontSize
+          line.words = sentence.concat(line.words)
+        }
+
+        if (line.words.length > this.wordPerLine * 3) {
+          line.words = line.words.slice(0, this.wordPerLine * 2)
+        }
+      })
+    })
+
+    this.clear()
+    this.pool.forEach(line => this.drawLine(line))
+
+    requestAnimationFrame(this.drawFrame.bind(this))
+  }
 }
 
-export default rain
+export default Rain
