@@ -1,7 +1,7 @@
 {
-  "name": "resume",
+  "name": "matrix",
   "version": "1.0.0",
-  "description": "个人简历",
+  "description": "matrix code rain",
   "private": true,
   "homepage": ".",
   "dependencies": {
