@@ -8,9 +8,6 @@
  */
 import produce from 'immer'
 
-const fontSize = 24
-const emptyRange = 0.2
-
 function shuffle (arr: any[]) {
   const length = arr.length
   const result = arr.slice(0)
@@ -26,7 +23,7 @@ function shuffle (arr: any[]) {
 }
 
 function randSpeed () {
-  return Math.random() * 3 + 1
+  return Math.random() * 3 + 2
 }
 
 function randInt (max: number, min = 0) {
@@ -60,6 +57,9 @@ interface Line {
   words: Word[]
 }
 
+const fontSize = 24
+const emptyRange = 0.2
+
 const allWords: Word[] = '0123456789qwertyuiopasdfghjklzxcvbnm'.split('').map(str => {
   return {
     alpha: 1,
@@ -71,9 +71,63 @@ const emptyEle = produce(allWords[0], word => {
   word.alpha = 0
 })
 let wordPerLine = allWords.length
-const minEmptyLength = Math.floor(wordPerLine * emptyRange)
-const minSentenceLength = Math.floor(wordPerLine * (1 - emptyRange))
+let minEmptyLength = 0
+let minSentenceLength = 0
 let pool: Line[] = []
+
+function getCanvasClear (context: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
+  // 这里未使用debonce等限流手段，因为感觉比起绘制作业，这里作业的成本太低了无需特意处理
+  return () => {
+    context.globalAlpha = 1
+
+    context.font = `${fontSize}px MatrixCode`
+    context.fillStyle = '#000'
+    context.shadowOffsetX = context.shadowOffsetY = 0
+    context.shadowBlur = 2
+
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    context.fillRect(0, 0, canvas.width, canvas.height)
+  }
+}
+
+function getCanvasResize (canvas: HTMLCanvasElement): () => void {
+  return () => {
+    canvas.width = canvas.clientWidth
+    canvas.height = canvas.clientHeight
+
+    wordPerLine = Math.floor(canvas.height / fontSize) + 1
+    minEmptyLength = Math.floor(wordPerLine * emptyRange)
+    minSentenceLength = Math.floor(wordPerLine * (1 - emptyRange))
+
+    pool = preparePool(canvas, pool)
+  }
+}
+
+function preparePool<T extends typeof pool> (canvas: HTMLCanvasElement, data: T): T {
+  const lastEle = data[data.length - 1]
+  let offset = !lastEle ? 0 : lastEle.x
+  const width = canvas.width
+
+  let line: Line
+  const push = (data: Line[]) => { data.push(line) }
+
+  while (offset < width) {
+    const isEmpty = Math.random() < emptyRange
+    line = {
+      x: offset,
+      y: 0,
+      speed: randSpeed(),
+      lastEmptyCount: isEmpty ? 1 : 0,
+      words: [emptyEle]
+    }
+
+    data = produce(data, push)
+
+    offset += fontSize
+  }
+
+  return data
+}
 
 function drawLine (context: CanvasRenderingContext2D, line: Line) {
   const { x, y, words } = line
@@ -83,14 +137,7 @@ function drawLine (context: CanvasRenderingContext2D, line: Line) {
     context.fillText(word.text, x, fontSize * index + y)
   })
 }
-function getCanvasClear (context: CanvasRenderingContext2D, width: number, height: number) {
-  return () => {
-    context.fillStyle = '#000'
-    context.globalAlpha = 1
-    context.clearRect(0, 0, width, height)
-    context.fillRect(0, 0, width, height)
-  }
-}
+
 function drawFrame (context: CanvasRenderingContext2D, cloud: Line[], clearCanvas: () => void) {
   cloud = produce(cloud, cloud => {
     cloud.forEach(line => {
@@ -103,7 +150,7 @@ function drawFrame (context: CanvasRenderingContext2D, cloud: Line[], clearCanva
        */
 
       line.y += line.speed
-      if (randInt(10) > 5) {
+      if (Math.random() < 0.8) {
         const rand = randInt(line.words.length)
         line.words[rand].text = randWord(allWords).text
       }
@@ -142,10 +189,8 @@ function drawFrame (context: CanvasRenderingContext2D, cloud: Line[], clearCanva
 }
 
 function rain (canvas: HTMLCanvasElement) {
-  canvas.width = canvas.clientWidth
-  canvas.height = canvas.clientHeight
-
-  wordPerLine = Math.floor(canvas.height / fontSize) + 1
+  const resizer = getCanvasResize(canvas)
+  window.addEventListener('resize', resizer)
 
   const context = canvas.getContext('2d')
   if (!context) {
@@ -153,33 +198,11 @@ function rain (canvas: HTMLCanvasElement) {
   }
 
   // 设置画布属性
-  const clearFunc = getCanvasClear(context, canvas.width, canvas.height)
-  context.globalAlpha = 1
-  context.shadowOffsetX = context.shadowOffsetY = 0
-  context.shadowBlur = 2
+  const clearFunc = getCanvasClear(context, canvas)
   context.shadowColor = '#94f475'
   context.textBaseline = 'top'
-  context.font = `${fontSize}px MatrixCode`
 
-  // 填充初始数据
-  let offset = 0
-  const width = canvas.width
-
-  let line
-  while (offset < width) {
-    const isEmpty = Math.random() < emptyRange
-    line = {
-      x: offset,
-      y: 0,
-      speed: randSpeed(),
-      lastEmptyCount: isEmpty ? 1 : 0,
-      words: [emptyEle]
-    }
-
-    pool.push(line)
-
-    offset += fontSize
-  }
+  resizer()
 
   drawFrame(context, pool, clearFunc)
 }
