@@ -1,5 +1,5 @@
 ## 一个字符密度更高的矩阵演示
-(demo)[https://inori-lover.github.io/matrix-code-rain]
+[demo](https://inori-lover.github.io/matrix-code-rain)
 
 ### 为什么写这个
 在我打算实现一个matrix rain作为个人简历网站背景时，我发现没有一个实现时比较符合我个人对matrix rain的期望。在期望中我觉得matrix rain理应：
